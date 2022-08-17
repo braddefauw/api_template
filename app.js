@@ -15,6 +15,29 @@ const app = express();
 // specify out request bodies are json
 app.use(express.json());
 
+// configure basicAuth
+app.use(basicAuth({
+  authorizer : dbAuthorizer,
+  authorizeAsync : true,
+  unauthorizedResponse : () => "You do not have access to this content"
+}));
+
+// compare username and password with db content
+// return boolean indicating password match
+async function dbAuthorizer(username, password, callback) {
+  try{
+    // get matching user from db
+    const user = await User.findOne({where: {name: username}})
+    // if username is valid compare passwords
+    let isValid = ( user != null ) ? await bcrypt.compare(password, user.password) : false;
+    callback(null, isValid)
+  }catch(err){
+    //if authorizer fails, show error
+    console.log("Error: ", err)
+    callback(null, false)
+  }
+}
+
 // routes go here
 app.get('/', (req, res) => {
   res.send('<h1>App Running</h1>')
@@ -33,10 +56,6 @@ app.get('/users/:id', async(req, res) => {
 })
 
 //post a new user
-// app.post('/users', async (req, res) => {
-//   let newUser = await User.create(req.body);
-//   res.json({newUser})
-// }) 
 app.post('/users', async (req, res) => {
   const name = req.body.name;
   const password = req.body.password;
@@ -47,25 +66,23 @@ app.post('/users', async (req, res) => {
 })
 
 //create new session
-app.post('/session', async (req, res) => {
-  const thisUser = await User.findOne({
-    where: {name: req.body.name}
-  })
-  if(!thisUser){
-    res.send("User not found")
-  }else{
-    bcrypt.compare(req.body.password, thisUser.password, async (err, result) => {
-      if(result){
-        res.json(thisUser)
-      }else{
-        res.send("passwords do not match");
-      }
-    })
-  }
-})
+// app.post('/session', async (req, res) => {
+//   const thisUser = await User.findOne({
+//     where: {name: req.body.name}
+//   })
+//   if(!thisUser){
+//     res.send("User not found")
+//   }else{
+//     bcrypt.compare(req.body.password, thisUser.password, async (err, result) => {
+//       if(result){
+//         res.json(thisUser)
+//       }else{
+//         res.send("passwords do not match");
+//       }
+//     })
+//   }
+// })
  
- 
-
 //read all items
 app.get('/items', async(req, res) => {
   let items = await Item.findAll()
