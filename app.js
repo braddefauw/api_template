@@ -12,39 +12,58 @@ const { use } = require("bcrypt/promises");
 // initialise Express
 const app = express();
 
+const { expressjwt: jwt } = require('express-jwt');
+const jwks = require('jwks-rsa');
+
+const port = process.env.PORT || 3000;
+
 // specify out request bodies are json
 app.use(express.json());
 
-// configure basicAuth
-app.use(basicAuth({
-  authorizer : dbAuthorizer,
-  authorizeAsync : true,
-  unauthorizedResponse : () => "You do not have access to this content"
-}));
+const jwtCheck = jwt({
+  secret: jwks.expressJwtSecret({
+      cache: true,
+      rateLimit: true,
+      jwksRequestsPerMinute: 5,
+      jwksUri: 'https://dev-w6lecynb.us.auth0.com/.well-known/jwks.json'
+}),
+audience: 'http://localhost:3000',
+issuer: 'https://dev-w6lecynb.us.auth0.com/',
+algorithms: ['RS256']
+});
 
-// compare username and password with db content
-// return boolean indicating password match
-async function dbAuthorizer(username, password, callback) {
-  try{
-    // get matching user from db
-    const user = await User.findOne({where: {name: username}})
-    // if username is valid compare passwords
-    let isValid = ( user != null ) ? await bcrypt.compare(password, user.password) : false;
-    callback(null, isValid)
-  }catch(err){
-    //if authorizer fails, show error
-    console.log("Error: ", err)
-    callback(null, false)
-  }
-}
+// app.use(jwtCheck);
 
 // routes go here
 app.get('/', (req, res) => {
   res.send('<h1>App Running</h1>')
 })
 
+// configure basicAuth
+// app.use(basicAuth({
+//   authorizer : dbAuthorizer,
+//   authorizeAsync : true,
+//   unauthorizedResponse : () => "You do not have access to this content"
+// }));
+
+// // compare username and password with db content
+// // return boolean indicating password match
+// async function dbAuthorizer(username, password, callback) {
+//   try{
+//     // get matching user from db
+//     const user = await User.findOne({where: {name: username}})
+//     // if username is valid compare passwords
+//     let isValid = ( user != null ) ? await bcrypt.compare(password, user.password) : false;
+//     callback(null, isValid)
+//   }catch(err){
+//     //if authorizer fails, show error
+//     console.log("Error: ", err)
+//     callback(null, false)
+//   }
+// }
+
 //get all users
-app.get('/users', async(req, res) => {
+app.get('/users', jwtCheck, async(req, res) => {
   let users = await User.findAll()
   res.json({users})
 })
@@ -114,6 +133,6 @@ app.put('/items/:id', async (req, res) => {
   res.json({updatedItem});
 })
 
-app.listen(3000, () => {
-  console.log("Server running on port 3000");
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
